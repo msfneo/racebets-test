@@ -1,0 +1,133 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use App\Application\CustomerService;
+use App\Application\TransactionService;
+use App\Container;
+use App\Domain\Money;
+use App\Infrastructure\Database\ConnectionFactory;
+use App\Infrastructure\Database\Migrator;
+use App\Support\Env;
+
+require __DIR__ . '/../vendor/autoload.php';
+
+Env::load(__DIR__ . '/../.env');
+
+$command = $argv[1] ?? 'help';
+
+/**
+ * The migrator connects without a schema selected the first time so that it can
+ * create the database if it does not exist yet.
+ */
+$migrator = static function (): Migrator {
+    $database = Env::require('DB_NAME');
+
+    $server = new PDO(
+        \sprintf('mysql:host=%s;port=%s', Env::require('DB_HOST'), Env::get('DB_PORT', '3306')),
+        Env::require('DB_USER'),
+        Env::get('DB_PASSWORD', ''),
+        [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION],
+    );
+    $server->exec(\sprintf(
+        'CREATE DATABASE IF NOT EXISTS `%s` CHARACTER SET utf8mb4 COLLATE utf8mb4_0900_ai_ci',
+        \str_replace('`', '', $database),
+    ));
+
+    return new Migrator(ConnectionFactory::create($database), __DIR__ . '/../migrations');
+};
+
+try {
+    switch ($command) {
+        case 'migrate':
+            $applied = $migrator()->migrate();
+
+            echo $applied === []
+                ? \sprintf("Schema '%s' is already up to date.\n", Env::require('DB_NAME'))
+                : \sprintf("Applied to '%s':\n  %s\n", Env::require('DB_NAME'), \implode("\n  ", $applied));
+            break;
+
+        case 'migrate:fresh':
+            $m = $migrator();
+            $m->reset();
+            $m->migrate();
+            echo \sprintf("Schema '%s' rebuilt from scratch.\n", Env::require('DB_NAME'));
+            break;
+
+        case 'seed':
+            seed(new Container());
+            break;
+
+        case 'help':
+        default:
+            echo <<<TXT
+                Usage: bin/console <command>
+
+                  migrate        Apply any pending migrations (idempotent).
+                  migrate:fresh  Drop every table and re-apply all migrations.
+                  seed           Insert demo customers and a spread of transactions,
+                                 so that GET /reports/transactions has data to show.
+
+                TXT;
+            break;
+    }
+} catch (Throwable $e) {
+    \fwrite(\STDERR, \sprintf("%s: %s\n", $e::class, $e->getMessage()));
+    exit(1);
+}
+
+exit(0);
+
+/**
+ * Demo data spread over the last few days and a handful of countries.
+ */
+function seed(Container $container): void
+{
+    /** @var CustomerService $customers */
+    $customers = $container->customerService();
+    /** @var TransactionService $transactions */
+    $transactions = $container->transactionService();
+
+    $people = [
+        ['male', 'Marco', 'Vella', 'MT'],
+        ['female', 'Anna', 'Schmidt', 'DE'],
+        ['female', 'Elena', 'Rossi', 'IT'],
+        ['male', 'Tom', 'Doyle', 'IE'],
+        ['other', 'Robin', 'Janssen', 'NL'],
+    ];
+
+    $suffix = \bin2hex(\random_bytes(3));
+
+    foreach ($people as [$gender, $first, $last, $country]) {
+        $customer = $customers->create([
+            'gender' => $gender,
+            'first_name' => $first,
+            'last_name' => $last,
+            'country' => $country,
+            'email' => \sprintf('%s.%s.%s@example.com', \strtolower($first), \strtolower($last), $suffix),
+        ]);
+
+        // Four deposits, so the 3rd one demonstrates the bonus.
+        foreach (['120.00', '75.50', '200.00', '40.25'] as $amount) {
+            $transactions->deposit($customer->id, Money::parsePositive($amount));
+        }
+
+        $transactions->withdraw($customer->id, Money::parsePositive('50.00'));
+
+        $fresh = $customers->get($customer->id);
+
+        echo \sprintf(
+            "#%d %-7s %-16s %s  bonus %2d%%  real %8s  bonus %7s\n",
+            $fresh->id,
+            $fresh->country,
+            $first . ' ' . $last,
+            $fresh->email,
+            $fresh->bonusPercent,
+            $fresh->realBalance->format(),
+            $fresh->bonusBalance->format(),
+        );
+    }
+
+    echo "\nSeeded. Try: curl -s 'http://localhost:8080/reports/transactions' | jq\n";
+}
