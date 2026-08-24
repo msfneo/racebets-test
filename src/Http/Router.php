@@ -8,10 +8,8 @@ use App\Http\Exception\MethodNotAllowed;
 use App\Http\Exception\RouteNotFound;
 
 /**
- * Minimal path-pattern router.
- *
- * Patterns use `{name}` placeholders, which match a single path segment and are
- * handed to the controller through Request::pathParameter().
+ * Minimal router. `{name}` placeholders match one path segment and reach the
+ * controller through Request::pathParameter().
  */
 final class Router
 {
@@ -62,9 +60,6 @@ final class Router
         }
 
         if ($allowedForPath !== []) {
-            // HEAD is answered by the GET handler at the web-server level; we do
-            // not advertise it here because the kernel never emits a body-less
-            // response itself.
             throw MethodNotAllowed::for($request->method, $path, \array_values(\array_unique($allowedForPath)));
         }
 
@@ -72,8 +67,8 @@ final class Router
     }
 
     /**
-     * Splits the pattern on its placeholders so that the literal segments can be
-     * quoted and the placeholders turned into named capture groups.
+     * Splits on placeholders so literal segments can be quoted and placeholders
+     * become named capture groups.
      *
      * @return array{0: string, 1: list<string>}
      */

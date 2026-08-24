@@ -5,11 +5,8 @@ declare(strict_types=1);
 namespace App\Support;
 
 /**
- * Reads configuration from the process environment.
- *
- * Under Docker Compose the variables are injected by the runtime; the optional
- * .env file only exists so the project can also be run against a MySQL server
- * you already have locally.
+ * Configuration from the process environment. Compose injects the variables;
+ * the optional .env file is only for running against a local MySQL directly.
  */
 final class Env
 {

@@ -18,21 +18,18 @@ final class ConnectionFactory
         );
 
         $pdo = new \PDO($dsn, Env::require('DB_USER'), Env::get('DB_PASSWORD', ''), [
-            // Any driver problem becomes an exception rather than a silent false.
             \PDO::ATTR_ERRMODE => \PDO::ERRMODE_EXCEPTION,
             \PDO::ATTR_DEFAULT_FETCH_MODE => \PDO::FETCH_ASSOC,
-            // Real prepared statements: the placeholders are sent to the server
-            // rather than interpolated client-side.
+            // Real server-side prepares, not client-side interpolation.
             \PDO::ATTR_EMULATE_PREPARES => false,
             \PDO::ATTR_STRINGIFY_FETCHES => false,
         ]);
 
-        // The application reasons entirely in UTC; pin the session so that
-        // NOW(), DATE() and the generated `occurred_on` column agree with PHP
-        // regardless of how the server is configured.
+        // Pin the session to UTC so DATE() and the generated `occurred_on`
+        // column agree with PHP whatever the server is configured for.
         $pdo->exec("SET time_zone = '+00:00'");
 
-        // Reject silently-truncating writes outright.
+        // Reject silently-truncating writes.
         $pdo->exec("SET SESSION sql_mode = 'STRICT_ALL_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_ENGINE_SUBSTITUTION'");
 
         return $pdo;

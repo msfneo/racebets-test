@@ -10,8 +10,8 @@ use App\Http\Request;
 final class Identifier
 {
     /**
-     * A path segment that is not a positive integer cannot identify a resource,
-     * so it is a 404 rather than a validation error.
+     * A non-numeric segment cannot identify a resource, so it is a 404 rather
+     * than a validation error.
      *
      * @throws CustomerNotFound
      */

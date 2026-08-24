@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Database;
 
 /**
- * Applies the plain-SQL files in /migrations in filename order and records what
- * has run, so `migrate` is idempotent and safe to call on every container boot.
+ * Applies /migrations in filename order and records what ran, so `migrate` is
+ * idempotent and safe on every container boot.
  */
 final class Migrator
 {
@@ -32,10 +32,8 @@ final class Migrator
                 throw new \RuntimeException(\sprintf('Cannot read migration "%s".', $file));
             }
 
-            // DDL is not transactional in MySQL, so a failure part-way through a
-            // multi-statement file would leave the schema half-applied. Each
-            // migration is therefore a single statement, recorded only once the
-            // statement itself succeeded.
+            // DDL is not transactional in MySQL, so each migration is a single
+            // statement, recorded only after it succeeds.
             $this->pdo->exec($sql);
 
             $name = \basename($file);
@@ -49,10 +47,7 @@ final class Migrator
         return $applied;
     }
 
-    /**
-     * Drops every table. Used by the integration suite between runs; never
-     * reachable from the HTTP layer.
-     */
+    /** Drops every table. Used by the test suite; not reachable over HTTP. */
     public function reset(): void
     {
         $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
@@ -68,9 +63,7 @@ final class Migrator
         $this->pdo->exec('SET FOREIGN_KEY_CHECKS = 1');
     }
 
-    /**
-     * @return list<string> absolute paths, in application order
-     */
+    /** @return list<string> absolute paths, in application order */
     private function pending(): array
     {
         $done = $this->pdo

@@ -5,13 +5,8 @@ declare(strict_types=1);
 namespace App\Infrastructure\Database;
 
 /**
- * Runs a unit of work inside a single database transaction, retrying the whole
- * closure if InnoDB rolls it back as a deadlock victim.
- *
- * Deposits and withdrawals lock exactly one customer row, so deadlocks are not
- * expected in practice — but "not expected" is not a guarantee, and the cost of
- * being wrong is a failed financial request. The retry is safe because the
- * closure is only ever re-run after a *full* rollback: no partial work survives.
+ * Runs a unit of work in one transaction, retrying if InnoDB picks it as a
+ * deadlock victim. Safe to retry because a retry only follows a full rollback.
  */
 final class TransactionManager
 {
@@ -52,8 +47,7 @@ final class TransactionManager
                 $this->rollBackQuietly();
 
                 if ($attempt < self::MAX_ATTEMPTS && $this->isRetryable($e)) {
-                    // Brief, growing back-off so two contending requests do not
-                    // immediately collide again.
+                    // Growing back-off, so contending requests do not collide again.
                     \usleep($attempt * 10_000);
 
                     continue;
@@ -73,7 +67,7 @@ final class TransactionManager
         try {
             $this->pdo->rollBack();
         } catch (\PDOException) {
-            // The server already rolled the transaction back for us.
+            // Already rolled back server-side.
         }
     }
 

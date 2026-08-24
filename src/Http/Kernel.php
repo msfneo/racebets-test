@@ -8,9 +8,7 @@ use App\Container;
 use App\Domain\Exception\ApiException;
 use App\Http\Exception\MethodNotAllowed;
 
-/**
- * Wires the routing table and turns every exception into a JSON response.
- */
+/** Wires the routing table and turns every exception into a JSON response. */
 final class Kernel
 {
     private readonly Router $router;
@@ -27,7 +25,7 @@ final class Kernel
         } catch (ApiException $e) {
             return $this->renderApiException($e);
         } catch (\Throwable $e) {
-            // Never leak an internal message or stack trace to an API client.
+            // Never leak an internal message or trace to a client.
             \error_log(\sprintf(
                 '[%s] %s in %s:%d%s%s',
                 $e::class,

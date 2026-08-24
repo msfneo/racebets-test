@@ -4,9 +4,7 @@ declare(strict_types=1);
 
 namespace App\Domain;
 
-/**
- * The deposit bonus rules, in one place.
- */
+/** The deposit bonus rules, in one place. */
 final class BonusPolicy
 {
     /** Every Nth deposit of a customer earns a bonus. */
@@ -16,9 +14,8 @@ final class BonusPolicy
     public const MAX_PERCENT = 20;
 
     /**
-     * Drawn once at registration and fixed for the lifetime of the customer.
-     * random_int() is used rather than rand()/mt_rand() — it is the correct
-     * default whenever a value has monetary consequences.
+     * Drawn once at registration and fixed thereafter. random_int() rather than
+     * mt_rand(): the value has monetary consequences.
      */
     public static function randomPercent(): int
     {
@@ -35,10 +32,8 @@ final class BonusPolicy
     }
 
     /**
-     * Bonus on a qualifying deposit, rounded half up to the nearest cent.
-     *
-     * Integer arithmetic throughout: 33 cents at 15% is 495/100 cents, which
-     * rounds to 5 cents rather than depending on float behaviour.
+     * Rounded half up to the nearest cent, in integer arithmetic: 33 cents at
+     * 15% is 495/100 cents, which rounds to 5.
      */
     public static function bonusFor(Money $deposit, int $percent): Money
     {

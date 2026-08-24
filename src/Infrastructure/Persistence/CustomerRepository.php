@@ -9,9 +9,6 @@ use App\Domain\Exception\EmailAlreadyTaken;
 use App\Domain\Gender;
 use App\Domain\Money;
 
-/**
- * Raw SQL over PDO — no ORM, no query builder.
- */
 final class CustomerRepository
 {
     private const COLUMNS = '
@@ -19,10 +16,9 @@ final class CustomerRepository
         real_balance, bonus_balance, deposit_count, created_at, updated_at
     ';
 
-    /** @var list<string> the only columns PATCH /customers/{id} may write */
+    /** bonus_percent is absent by design: drawn at registration, never edited. */
     private const UPDATABLE_COLUMNS = ['gender', 'first_name', 'last_name', 'country', 'email'];
 
-    /** Duplicate entry for key. */
     private const ER_DUP_ENTRY = '23000';
 
     public function __construct(private readonly \PDO $pdo)
@@ -60,9 +56,8 @@ final class CustomerRepository
                 'updated_at' => self::formatTimestamp($now),
             ]);
         } catch (\PDOException $e) {
-            // Relying on the unique index rather than a prior SELECT is what
-            // makes this safe against two simultaneous registrations of the
-            // same address: the database is the single arbiter.
+            // Leaning on the unique index instead of a prior SELECT is what makes
+            // two simultaneous registrations of the same address safe.
             if (($e->errorInfo[0] ?? null) === self::ER_DUP_ENTRY) {
                 throw EmailAlreadyTaken::forEmail($email);
             }
@@ -85,13 +80,10 @@ final class CustomerRepository
 
     /**
      * Loads a customer and holds an exclusive row lock until the surrounding
-     * transaction ends.
+     * transaction ends, serialising concurrent balance changes for that customer.
      *
-     * This is the core of the concurrency guarantee: two deposits for the same
-     * customer serialise here, so the read of `deposit_count` and the write of
-     * the new balance cannot interleave. Callers must already be inside a
-     * transaction, otherwise the lock is released immediately and the guarantee
-     * is void — hence the explicit check.
+     * Outside a transaction the lock would be released immediately and the
+     * guarantee would be void, hence the check.
      */
     public function findForUpdate(int $id): ?Customer
     {
@@ -122,10 +114,8 @@ final class CustomerRepository
 
         $assignments = [];
         foreach (\array_keys($fields) as $column) {
-            // Column names cannot be bound as parameters, so the set of columns
-            // an update may touch is fixed here rather than trusted from the
-            // caller. bonus_percent is deliberately absent: it is drawn once at
-            // registration and is not editable.
+            // Column names cannot be bound, so the writable set is fixed here
+            // rather than trusted from the caller.
             if (!\in_array($column, self::UPDATABLE_COLUMNS, true)) {
                 throw new \LogicException(\sprintf('Column "%s" is not updatable.', $column));
             }
@@ -150,11 +140,8 @@ final class CustomerRepository
     }
 
     /**
-     * Credits a deposit and, when the rule applies, its bonus.
-     *
-     * The balances are incremented with a relative UPDATE rather than written as
-     * an absolute value computed in PHP. Combined with the row lock taken by
-     * findForUpdate(), that removes any possibility of a lost update.
+     * Relative increments rather than an absolute value computed in PHP, so a
+     * lost update is impossible even if the row lock were ever dropped.
      */
     public function creditDeposit(int $id, Money $real, Money $bonus, \DateTimeImmutable $now): void
     {
@@ -176,19 +163,16 @@ final class CustomerRepository
     }
 
     /**
-     * Debits a withdrawal.
-     *
-     * The `real_balance >= :amount` predicate is redundant while the caller holds
-     * the row lock, and that is exactly the point: if a future refactor ever
-     * loses the lock, this writes zero rows instead of overdrawing the account.
+     * The `real_balance >= :minimum` predicate is redundant under the row lock,
+     * which is the point: without it a lost lock would overdraw the account
+     * instead of writing zero rows.
      *
      * @return bool false when the balance was insufficient
      */
     public function debitWithdrawal(int $id, Money $amount, \DateTimeImmutable $now): bool
     {
-        // :amount and :minimum carry the same value but need distinct names:
-        // emulated prepares are switched off, so the statement goes to MySQL as
-        // positional parameters and a name cannot appear twice.
+        // Same value, two names: emulated prepares are off, so the statement is
+        // sent positionally and a placeholder cannot appear twice.
         $statement = $this->pdo->prepare(
             'UPDATE customers
                 SET real_balance = real_balance - :amount,
@@ -212,8 +196,7 @@ final class CustomerRepository
      */
     public function all(int $limit, int $offset): array
     {
-        // Bound as integers rather than interpolated; LIMIT placeholders need
-        // explicit PDO::PARAM_INT because emulated prepares are switched off.
+        // LIMIT placeholders need an explicit int type with emulated prepares off.
         $statement = $this->pdo->prepare(
             'SELECT ' . self::COLUMNS . ' FROM customers ORDER BY id DESC LIMIT :limit OFFSET :offset',
         );

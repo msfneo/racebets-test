@@ -27,18 +27,13 @@ final readonly class Customer implements \JsonSerializable
         return $this->realBalance->plus($this->bonusBalance);
     }
 
-    /**
-     * Bonus money is not withdrawable, so the ceiling on a withdrawal is the
-     * real balance alone.
-     */
+    /** Bonus money is not withdrawable, so the ceiling is the real balance. */
     public function withdrawableBalance(): Money
     {
         return $this->realBalance;
     }
 
-    /**
-     * How many deposits this customer still needs before the next bonus.
-     */
+    /** Deposits still needed before the next bonus. */
     public function depositsUntilNextBonus(): int
     {
         $position = $this->depositCount % BonusPolicy::EVERY_NTH_DEPOSIT;

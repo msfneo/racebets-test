@@ -7,10 +7,7 @@ namespace App\Application;
 use App\Domain\Customer;
 use App\Domain\Transaction;
 
-/**
- * What a completed deposit or withdrawal produced: the ledger row, the bonus row
- * if the deposit earned one, and the customer's state afterwards.
- */
+/** The ledger row, the bonus row if one was earned, and the resulting customer. */
 final readonly class TransactionResult implements \JsonSerializable
 {
     public function __construct(

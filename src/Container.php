@@ -18,11 +18,9 @@ use App\Support\Clock;
 use App\Support\SystemClock;
 
 /**
- * Explicit lazy service locator.
- *
- * A container library would earn its keep in a larger codebase; at this size a
- * dozen typed factory methods are easier to follow and impossible to
- * misconfigure. Tests construct it with a fixed clock and their own connection.
+ * Explicit lazy service locator. A container library would earn its keep in a
+ * larger codebase; here typed factory methods are enough. Tests construct it
+ * with a fixed clock and their own connection.
  */
 final class Container
 {

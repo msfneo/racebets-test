@@ -5,24 +5,16 @@ declare(strict_types=1);
 namespace App\Domain\Exception;
 
 /**
- * Implemented by every exception that carries a deliberate HTTP representation.
- *
- * Anything that does not implement this is an unexpected failure: the kernel
- * logs it and answers 500 without leaking internals to the client.
+ * Anything not implementing this is an unexpected failure: the kernel logs it
+ * and answers 500.
  */
 interface ApiException extends \Throwable
 {
     public function statusCode(): int;
 
-    /**
-     * Stable, machine-readable error identifier, e.g. "insufficient_funds".
-     */
+    /** Stable identifier, e.g. "insufficient_funds". */
     public function errorCode(): string;
 
-    /**
-     * Optional per-field details, keyed by field name.
-     *
-     * @return array<string, list<string>>
-     */
+    /** @return array<string, list<string>> per-field messages, keyed by field */
     public function details(): array;
 }

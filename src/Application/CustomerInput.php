@@ -9,11 +9,8 @@ use App\Domain\Exception\ValidationException;
 use App\Domain\Gender;
 
 /**
- * Validates and normalises the customer payload.
- *
- * All problems with a payload are collected and reported together, so a client
- * fixing a request does not have to discover its mistakes one round trip at a
- * time. The output is keyed by database column, ready for the repository.
+ * Validates and normalises the customer payload, collecting every problem
+ * rather than failing on the first. Output is keyed by database column.
  */
 final class CustomerInput
 {
@@ -21,7 +18,7 @@ final class CustomerInput
 
     private const MAX_NAME_LENGTH = 100;
 
-    /** Matches the VARCHAR(190) column, which is sized for a unique index. */
+    /** Matches the VARCHAR(190) column, sized for a unique index. */
     private const MAX_EMAIL_LENGTH = 190;
 
     /**
@@ -55,10 +52,8 @@ final class CustomerInput
     }
 
     /**
-     * Partial update: any subset of the registration fields, at least one.
-     *
-     * bonus_percent is not accepted here — it is drawn once at registration and
-     * changing it after the fact would let a client rewrite their own bonus.
+     * Any subset of the registration fields, at least one. bonus_percent is not
+     * accepted: it would let a client rewrite their own bonus rate.
      *
      * @param array<string, mixed> $payload
      *
@@ -154,7 +149,6 @@ final class CustomerInput
             return;
         }
 
-        // Counted in characters, not bytes: "Müller" is 6 characters.
         if (\mb_strlen($value) > self::MAX_NAME_LENGTH) {
             $errors[$field][] = \sprintf('Must be at most %d characters.', self::MAX_NAME_LENGTH);
 
@@ -187,8 +181,7 @@ final class CustomerInput
      */
     private static function validateEmail(string $value, array &$values, array &$errors): void
     {
-        // Stored lower case so that uniqueness does not depend on the collation
-        // of whichever server the schema ends up on.
+        // Lower cased so uniqueness does not depend on the server collation.
         $email = \mb_strtolower($value);
 
         if (\filter_var($email, \FILTER_VALIDATE_EMAIL) === false) {
@@ -207,9 +200,8 @@ final class CustomerInput
     }
 
     /**
-     * Unknown keys are an error rather than being ignored: silently dropping a
-     * misspelled "firstname" would look like a successful update that did
-     * nothing.
+     * Unknown keys are an error: dropping a misspelled "firstname" would look
+     * like a successful update that did nothing.
      *
      * @param array<string, mixed> $payload
      *

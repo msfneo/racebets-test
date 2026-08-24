@@ -7,10 +7,8 @@ namespace App\Http;
 use App\Http\Exception\MalformedRequest;
 
 /**
- * A deliberately small request abstraction.
- *
- * It exists so controllers never read superglobals, which in turn is what lets
- * the functional tests drive the kernel in-process without a web server.
+ * Keeps superglobals out of the controllers, which is what lets the tests drive
+ * the kernel in-process without a web server.
  */
 final class Request
 {
@@ -70,9 +68,7 @@ final class Request
     }
 
     /**
-     * The decoded JSON body, or an empty array when no body was sent.
-     *
-     * @return array<string, mixed>
+     * @return array<string, mixed> empty when no body was sent
      *
      * @throws MalformedRequest
      */
@@ -88,9 +84,8 @@ final class Request
             return $this->decodedBody = [];
         }
 
-        // Checked before decoding because json_decode(..., true) collapses both
-        // `{}` and `[]` to an empty PHP array, which makes them indistinguishable
-        // afterwards.
+        // Checked before decoding: json_decode(..., true) collapses `{}` and
+        // `[]` to the same empty array.
         if ($body[0] !== '{') {
             throw MalformedRequest::notAJsonObject();
         }

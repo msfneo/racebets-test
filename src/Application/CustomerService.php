@@ -54,8 +54,7 @@ final readonly class CustomerService
     {
         $fields = CustomerInput::forUpdate($payload);
 
-        // Checked up front so a request for a non-existent customer reports 404
-        // rather than a silent no-op.
+        // So an unknown customer is a 404 rather than a silent no-op.
         $this->get($id);
 
         $this->customers->updateDetails($id, $fields, $this->clock->now());

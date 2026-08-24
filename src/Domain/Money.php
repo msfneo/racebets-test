@@ -9,19 +9,14 @@ use App\Domain\Exception\ValidationException;
 /**
  * A monetary amount in euro cents.
  *
- * Everything financial in this application is an integer number of minor units.
- * Floats never touch a balance: they cannot represent 0.10 exactly, and summing
- * them drifts. Amounts arriving over HTTP are parsed from their decimal string
- * representation straight into cents.
+ * Integer minor units throughout: a float cannot represent 0.10 exactly and
+ * accumulates error as it is summed.
  */
 final readonly class Money implements \JsonSerializable
 {
     private const MINOR_PER_MAJOR = 100;
 
-    /**
-     * ~99 billion EUR. Far above any plausible amount, far below the point where
-     * summing a BIGINT ledger column could overflow.
-     */
+    /** ~99 billion EUR: well above any real amount, well below BIGINT overflow. */
     private const MAX_MINOR = 9_999_999_999_999;
 
     private const DECIMAL_PATTERN = '/^(?<whole>\d{1,13})(?:\.(?<fraction>\d{1,2}))?$/';
@@ -45,14 +40,7 @@ final readonly class Money implements \JsonSerializable
     }
 
     /**
-     * Parses a positive decimal amount supplied by a client.
-     *
-     * Accepts "100", "100.5", "100.50" and the equivalent integers. Floats are
-     * tolerated for convenience but clients are encouraged to send strings —
-     * see the README — because a JSON float has already lost precision by the
-     * time it reaches us.
-     *
-     * @throws ValidationException when the value is not a well-formed positive amount
+     * @throws ValidationException
      */
     public static function parsePositive(mixed $value, string $field = 'amount'): self
     {
@@ -66,6 +54,10 @@ final readonly class Money implements \JsonSerializable
     }
 
     /**
+     * Accepts "100", "100.5", "100.50" and the equivalent integers. Floats are
+     * tolerated but clients should send strings: a JSON float has already lost
+     * precision before it reaches us.
+     *
      * @throws ValidationException
      */
     public static function parse(mixed $value, string $field = 'amount'): self
@@ -97,9 +89,7 @@ final readonly class Money implements \JsonSerializable
         return new self($minor);
     }
 
-    /**
-     * Renders as a fixed-scale decimal string: "100.00", "-200.45", "0.00".
-     */
+    /** Fixed scale of two: "100.00", "-200.45", "0.00". */
     public function format(): string
     {
         $sign = $this->minor < 0 ? '-' : '';
@@ -154,12 +144,9 @@ final readonly class Money implements \JsonSerializable
     }
 
     /**
-     * Renders a float at 4 decimal places and trims the padding.
-     *
-     * Two extra digits are enough to absorb binary representation noise — the
-     * 100.10 a client typed arrives as 100.09999999999999 and comes back out as
-     * "100.1" — while still preserving a genuine third decimal, so "100.999" is
-     * rejected by the pattern above instead of being silently rounded.
+     * Two extra digits absorb binary representation noise — the 100.10 a client
+     * typed arrives as 100.09999999999999 — while still preserving a genuine
+     * third decimal, so "100.999" is rejected rather than silently rounded.
      */
     private static function floatToDecimalString(float $value): string
     {

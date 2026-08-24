@@ -19,9 +19,7 @@ final class TransactionRepository
     {
     }
 
-    /**
-     * Appends a ledger row. `amount` is signed: negative for withdrawals.
-     */
+    /** `amount` is signed: negative for withdrawals. */
     public function append(
         int $customerId,
         TransactionType $type,
@@ -84,12 +82,8 @@ final class TransactionRepository
     }
 
     /**
-     * Deposit/withdrawal totals grouped by day and country.
-     *
-     * Bonus rows are excluded: a bonus is not money the customer deposited, so
-     * counting it would overstate both the deposit count and the deposit total.
-     * The unique-customer count spans both types, matching "unique customers
-     * doing at least one deposit or withdrawal" from the specification.
+     * Totals grouped by day and country. Bonus rows are excluded: a bonus is not
+     * money the customer deposited. The unique-customer count spans both types.
      *
      * @param \DateTimeImmutable $from inclusive lower bound
      * @param \DateTimeImmutable $to   exclusive upper bound

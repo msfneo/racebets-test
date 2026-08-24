@@ -61,11 +61,7 @@ final readonly class JsonResponse
         echo $this->body;
     }
 
-    /**
-     * Convenience accessor for tests.
-     *
-     * @return array<string, mixed>
-     */
+    /** @return array<string, mixed> convenience accessor for tests */
     public function decoded(): array
     {
         /** @var array<string, mixed> $decoded */

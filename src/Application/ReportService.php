@@ -9,15 +9,12 @@ use App\Domain\Money;
 use App\Infrastructure\Persistence\TransactionRepository;
 use App\Support\Clock;
 
-/**
- * Deposit and withdrawal totals per country and day.
- */
+/** Deposit and withdrawal totals per country and day. */
 final readonly class ReportService
 {
-    /** Both bounds are inclusive dates, so this is the default window length. */
+    /** Both bounds are inclusive, so the default window spans 7 calendar days. */
     public const DEFAULT_WINDOW_DAYS = 7;
 
-    /** Guards against a client asking for an unbounded scan. */
     private const MAX_WINDOW_DAYS = 366;
 
     public function __construct(
@@ -35,9 +32,8 @@ final readonly class ReportService
     {
         [$from, $to] = $this->resolveWindow($fromInput, $toInput);
 
-        // `to` is inclusive for the caller, so the query runs up to the start of
-        // the following day. Doing it this way — rather than 23:59:59 — keeps
-        // transactions recorded in the last second of the day inside the window.
+        // `to` is inclusive, so query up to the start of the next day rather
+        // than 23:59:59, which would drop the final second.
         $rows = $this->ledger->report($from, $to->modify('+1 day'));
 
         return [
@@ -56,7 +52,6 @@ final readonly class ReportService
                     ],
                     'withdrawals' => [
                         'count' => $row['withdrawal_count'],
-                        // Negative, as in the example report in the spec.
                         'amount' => Money::fromMinor($row['withdrawal_amount'])->format(),
                     ],
                 ],
@@ -66,8 +61,7 @@ final readonly class ReportService
     }
 
     /**
-     * Resolves the requested window, defaulting to the last 7 days: today plus
-     * the six days before it, all in UTC.
+     * Defaults to today plus the six days before it, in UTC.
      *
      * @return array{0: \DateTimeImmutable, 1: \DateTimeImmutable} both at 00:00:00
      *
@@ -119,8 +113,8 @@ final readonly class ReportService
             new \DateTimeZone('UTC'),
         );
 
-        // createFromFormat is lenient about impossible dates like 2025-02-31,
-        // which it rolls forward; the warning count is what catches those.
+        // createFromFormat rolls impossible dates like 2026-02-31 forward; the
+        // warning count is what catches them.
         $parseResult = \DateTimeImmutable::getLastErrors();
 
         if ($date === false || ($parseResult !== false && ($parseResult['warning_count'] + $parseResult['error_count']) > 0)) {

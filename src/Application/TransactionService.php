@@ -18,22 +18,9 @@ use App\Support\Clock;
 /**
  * Deposits and withdrawals.
  *
- * Every balance change happens inside one database transaction that begins by
- * taking an exclusive lock on the customer row (SELECT ... FOR UPDATE). Two
- * requests for the same customer therefore run strictly one after the other:
- * the second one only reads `deposit_count` and `real_balance` after the first
- * has committed. Requests for *different* customers never contend, because the
- * lock is on a single row rather than the table.
- *
- * Three further layers back this up, so that a mistake anywhere in the chain
- * fails loudly rather than corrupting a balance:
- *
- *   1. Balances are written as relative UPDATEs (`balance = balance + :x`), not
- *      as an absolute value computed in PHP, so a lost update is impossible.
- *   2. The withdrawal UPDATE carries an `AND real_balance >= :amount` predicate
- *      and reports how many rows it touched.
- *   3. The `real_balance >= 0` CHECK constraint in the schema is the final
- *      backstop at the storage layer.
+ * Every balance change runs in one transaction that opens by locking the
+ * customer row, so concurrent requests for the same customer serialise instead
+ * of interleaving their read-modify-write.
  */
 final readonly class TransactionService
 {
@@ -56,9 +43,8 @@ final readonly class TransactionService
 
             $now = $this->clock->now();
 
-            // The counter is read under the lock, so two concurrent deposits
-            // cannot both see the same value and both award (or both skip) the
-            // 3rd-deposit bonus.
+            // Read under the lock, so two concurrent deposits cannot both see
+            // the same counter and both award or both skip the bonus.
             $depositNumber = $customer->depositCount + 1;
 
             $bonus = BonusPolicy::qualifiesForBonus($depositNumber)
@@ -71,9 +57,9 @@ final readonly class TransactionService
             $bonusBefore = $customer->bonusBalance;
             $bonusAfter = $bonusBefore->plus($bonus);
 
-            // The deposit row records the state before the bonus is applied and
-            // the bonus row the state after, so replaying the ledger in order
-            // reproduces the balances exactly.
+            // The deposit row records the state before the bonus and the bonus
+            // row the state after, so replaying the ledger in order reproduces
+            // the balances.
             $depositId = $this->ledger->append(
                 customerId: $customerId,
                 type: TransactionType::Deposit,
@@ -127,7 +113,7 @@ final readonly class TransactionService
             $customer = $this->customers->findForUpdate($customerId)
                 ?? throw CustomerNotFound::withId($customerId);
 
-            // Only real money is withdrawable; the bonus balance is excluded.
+            // Bonus money is excluded: only real money is withdrawable.
             $withdrawable = $customer->withdrawableBalance();
 
             if ($amount->isGreaterThan($withdrawable)) {
@@ -137,14 +123,12 @@ final readonly class TransactionService
             $now = $this->clock->now();
 
             if (!$this->customers->debitWithdrawal($customerId, $amount, $now)) {
-                // Unreachable while the row lock above is held. If it ever does
-                // happen, refusing the withdrawal is the only correct outcome.
+                // Unreachable while the row lock is held; refusing is the only
+                // safe outcome if it ever is reached.
                 throw InsufficientFunds::forWithdrawal($amount, $withdrawable);
             }
 
             $realAfter = $withdrawable->minus($amount);
-
-            // Stored negative, matching the sign convention of the report.
             $signedAmount = $amount->negated();
 
             $id = $this->ledger->append(
