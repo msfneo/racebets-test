@@ -69,8 +69,11 @@ final class Kernel
             ->add('POST', '/customers', $customers->create(...))
             ->add('GET', '/customers', $customers->index(...))
             ->add('GET', '/customers/{id}', $customers->show(...))
+            // PATCH only. Editing is a partial update, and answering PUT the
+            // same way would break its contract: PUT is defined as replacing the
+            // whole resource, so a body with one field would have to blank out
+            // the rest. A 405 naming PATCH in Allow is the honest answer.
             ->add('PATCH', '/customers/{id}', $customers->update(...))
-            ->add('PUT', '/customers/{id}', $customers->update(...))
 
             ->add('POST', '/customers/{id}/deposits', $transactions->deposit(...))
             ->add('POST', '/customers/{id}/withdrawals', $transactions->withdraw(...))

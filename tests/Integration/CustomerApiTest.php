@@ -154,6 +154,21 @@ final class CustomerApiTest extends IntegrationTestCase
         self::assertSame('method_not_allowed', $response->decoded()['error']['code']);
     }
 
+    /**
+     * Editing is a partial update, so it is PATCH. Accepting PUT for the same
+     * handler would misrepresent it: PUT replaces a resource, and a one-field
+     * body would then have to blank out everything else.
+     */
+    public function testPutIsNotOfferedForAPartialEdit(): void
+    {
+        $customer = $this->createCustomer();
+
+        $response = $this->request('PUT', '/customers/' . $customer->id, ['last_name' => 'Replaced']);
+
+        self::assertSame(405, $response->status);
+        self::assertStringContainsString('PATCH', $response->decoded()['error']['message']);
+    }
+
     public function testMalformedJsonIsRejectedBeforeItReachesTheDomain(): void
     {
         $response = $this->kernel->handle(new \App\Http\Request('POST', '/customers', [], '{"gender":'));
